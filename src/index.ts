@@ -47,7 +47,7 @@ app.get('/api/data', async (req: Request, res: Response) => {
   }
 })
 
-// Example endpoint demonstrating Redis cache
+// Example endpoint demonstrating Redis cache.
 app.get('/api/cache/:key', async (req: Request, res: Response) => {
   try {
     const { key } = req.params
