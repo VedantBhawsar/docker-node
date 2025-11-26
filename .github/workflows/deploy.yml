@@ -8,6 +8,7 @@ jobs:
   deploy:
     name: Deploy to VPS
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v3
@@ -23,8 +24,7 @@ jobs:
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
-            # Navigate to the project directory
-            cd ~/docker-node || exit 1
+            cd apps/docker-node
 
             # Pull latest changes from GitHub
             git pull origin main
