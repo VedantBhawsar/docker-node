@@ -1,0 +1,92 @@
+name: deployment-vps
+run-name: deployment-vps
+on:
+  push:
+    branches:
+      - main
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+      - name: Build Express application
+        run: |
+          cd backend
+          npm install
+          npm run build
+
+      - name: Deploy to VPS via SSH
+        uses: appleboy/ssh-action@master
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            # Navigate to the project directory
+            cd ~/docker-node || exit 1
+
+            # Pull latest changes from GitHub
+            git pull origin main
+
+            # Create .env file from GitHub secrets
+            cat > .env << 'EOF'
+            # Server Configuration
+            NODE_ENV=${{ secrets.NODE_ENV }}
+            PORT=${{ secrets.PORT }}
+
+            # MongoDB Configuration (for local development)
+            MONGODB_URI=${{ secrets.MONGODB_URI }}
+
+            # MongoDB Configuration (for Docker)
+            MONGO_INITDB_ROOT_USERNAME=${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+            MONGO_INITDB_ROOT_PASSWORD=${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+            MONGO_INITDB_DATABASE=${{ secrets.MONGO_INITDB_DATABASE }}
+
+            # Redis Configuration
+            REDIS_URL=${{ secrets.REDIS_URL }}
+
+            # Kafka Configuration
+            KAFKA_BROKERS=${{ secrets.KAFKA_BROKERS }}
+            KAFKA_CLIENT_ID=${{ secrets.KAFKA_CLIENT_ID }}
+            KAFKA_LOG_TOPIC=${{ secrets.KAFKA_LOG_TOPIC }}
+
+            # Zookeeper Configuration
+            ZOOKEEPER_CLIENT_PORT=${{ secrets.ZOOKEEPER_CLIENT_PORT }}
+            ZOOKEEPER_TICK_TIME=${{ secrets.ZOOKEEPER_TICK_TIME }}
+
+            # Kafka Broker Configuration
+            KAFKA_BROKER_ID=${{ secrets.KAFKA_BROKER_ID }}
+            KAFKA_ZOOKEEPER_CONNECT=${{ secrets.KAFKA_ZOOKEEPER_CONNECT }}
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=${{ secrets.KAFKA_LISTENER_SECURITY_PROTOCOL_MAP }}
+            KAFKA_ADVERTISED_LISTENERS=${{ secrets.KAFKA_ADVERTISED_LISTENERS }}
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=${{ secrets.KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR }}
+            KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=${{ secrets.KAFKA_TRANSACTION_STATE_LOG_MIN_ISR }}
+            KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=${{ secrets.KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR }}
+            KAFKA_AUTO_CREATE_TOPICS_ENABLE=${{ secrets.KAFKA_AUTO_CREATE_TOPICS_ENABLE }}
+
+            # Kafka UI Configuration
+            KAFKA_CLUSTERS_0_NAME=${{ secrets.KAFKA_CLUSTERS_0_NAME }}
+            KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=${{ secrets.KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS }}
+            KAFKA_CLUSTERS_0_ZOOKEEPER=${{ secrets.KAFKA_CLUSTERS_0_ZOOKEEPER }}
+
+            # Docker App Configuration
+            DOCKER_NODE_ENV=${{ secrets.DOCKER_NODE_ENV }}
+            DOCKER_PORT=${{ secrets.DOCKER_PORT }}
+            DOCKER_MONGODB_URI=${{ secrets.DOCKER_MONGODB_URI }}
+            DOCKER_REDIS_URL=${{ secrets.DOCKER_REDIS_URL }}
+            DOCKER_KAFKA_BROKERS=${{ secrets.DOCKER_KAFKA_BROKERS }}
+            EOF
+
+            # Stop existing containers
+            docker compose down
+
+            # Build and start containers with the new configuration
+            docker compose up --build -d
+
+            # Show running containers
+            docker compose ps
+
+            # Clean up unused Docker resources
+            docker system prune -f
