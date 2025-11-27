@@ -103,12 +103,12 @@ jobs:
             ENVFILE
 
             # Make scripts executable
-            chmod +x deployment/*.sh
+            chmod +x scripts/deployment/*.sh
 
             # Execute deployment
             export PROJECT_DIR="."
             export HEALTH_CHECK_URL="http://localhost:3000/health"
-            bash deployment/deploy.sh
+            bash scripts/deployment/deploy.sh
 
       - name: Verify Deployment
         uses: appleboy/ssh-action@v1.0.3
