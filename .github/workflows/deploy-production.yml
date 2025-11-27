@@ -2,7 +2,7 @@ name: Deploy to Production
 
 on:
   workflow_run:
-    workflows: ["CI Pipeline"]
+    workflows: ['CI Pipeline']
     types:
       - completed
     branches:
@@ -15,7 +15,6 @@ jobs:
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     environment:
       name: production
-      url: ${{ secrets.VPS_URL }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -26,8 +25,8 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USERNAME }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          source: "scripts/deployment/*"
-          target: "apps/docker-node/"
+          source: 'scripts/deployment/*'
+          target: 'apps/docker-node/'
           strip_components: 2
 
       - name: Deploy Application
@@ -133,11 +132,9 @@ jobs:
 
       - name: Notify Success
         if: success()
-        env:
-          DEPLOYMENT_URL: ${{ secrets.VPS_URL }}
         run: |
           echo "✓ Deployment successful!"
-          echo "Application URL: $DEPLOYMENT_URL"
+          echo "Application URL: port:3000"
 
       - name: Notify Failure
         if: failure()
