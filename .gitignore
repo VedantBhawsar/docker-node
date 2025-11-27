@@ -28,3 +28,16 @@ Thumbs.db
 *.swp
 *.swo
 *~
+
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
+# Deployment
+backups/
+reports/
+
+# Monitoring
+prometheus_data/
+grafana_data/

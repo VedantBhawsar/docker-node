@@ -1,0 +1,102 @@
+name: Deploy to Staging
+
+on:
+  push:
+    branches:
+      - develop
+  workflow_dispatch:
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging Environment
+    runs-on: ubuntu-latest
+    environment:
+      name: staging
+      url: ${{ secrets.STAGING_URL }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Run Quick Tests
+        run: |
+          npm ci
+          npm run test:unit
+          npm run build
+
+      - name: Copy Deployment Scripts
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USERNAME }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          source: "scripts/deployment/*"
+          target: "apps/docker-node-staging/"
+          strip_components: 2
+
+      - name: Deploy to Staging
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          NODE_ENV: staging
+          PORT: 3001
+          MONGODB_URI: ${{ secrets.STAGING_MONGODB_URI }}
+          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.STAGING_MONGO_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.STAGING_MONGO_PASSWORD }}
+          MONGO_INITDB_DATABASE: ${{ secrets.STAGING_MONGO_DATABASE }}
+          REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          KAFKA_BROKERS: ${{ secrets.STAGING_KAFKA_BROKERS }}
+          DOCKER_NODE_ENV: staging
+          DOCKER_PORT: 3001
+          DOCKER_MONGODB_URI: ${{ secrets.STAGING_DOCKER_MONGODB_URI }}
+          DOCKER_REDIS_URL: ${{ secrets.STAGING_DOCKER_REDIS_URL }}
+          DOCKER_KAFKA_BROKERS: ${{ secrets.STAGING_DOCKER_KAFKA_BROKERS }}
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USERNAME }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          envs: NODE_ENV,PORT,MONGODB_URI,MONGO_INITDB_ROOT_USERNAME,MONGO_INITDB_ROOT_PASSWORD,MONGO_INITDB_DATABASE,REDIS_URL,KAFKA_BROKERS,DOCKER_NODE_ENV,DOCKER_PORT,DOCKER_MONGODB_URI,DOCKER_REDIS_URL,DOCKER_KAFKA_BROKERS
+          script: |
+            cd apps/docker-node-staging
+
+            # Create .env file
+            cat > .env << 'ENVFILE'
+            NODE_ENV=$NODE_ENV
+            PORT=$PORT
+            MONGODB_URI=$MONGODB_URI
+            MONGO_INITDB_ROOT_USERNAME=$MONGO_INITDB_ROOT_USERNAME
+            MONGO_INITDB_ROOT_PASSWORD=$MONGO_INITDB_ROOT_PASSWORD
+            MONGO_INITDB_DATABASE=$MONGO_INITDB_DATABASE
+            REDIS_URL=$REDIS_URL
+            KAFKA_BROKERS=$KAFKA_BROKERS
+            DOCKER_NODE_ENV=$DOCKER_NODE_ENV
+            DOCKER_PORT=$DOCKER_PORT
+            DOCKER_MONGODB_URI=$DOCKER_MONGODB_URI
+            DOCKER_REDIS_URL=$DOCKER_REDIS_URL
+            DOCKER_KAFKA_BROKERS=$DOCKER_KAFKA_BROKERS
+            ENVFILE
+
+            # Pull and deploy
+            git fetch origin develop
+            git reset --hard origin/develop
+
+            chmod +x deployment/*.sh
+
+            # Quick deployment for staging (no blue-green)
+            docker compose down
+            docker compose build
+            docker compose up -d
+
+      - name: Verify Staging
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.STAGING_HOST }}
+          username: ${{ secrets.STAGING_USERNAME }}
+          key: ${{ secrets.STAGING_SSH_KEY }}
+          script: |
+            cd apps/docker-node-staging
+            bash deployment/health-check.sh http://localhost:3001/health 10 5
+
+      - name: Notify Staging Deployment
+        if: always()
+        run: |
+          echo "Staging deployment completed"
+          echo "Check the workflow for deployment status"

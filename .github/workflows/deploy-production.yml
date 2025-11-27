@@ -1,0 +1,146 @@
+name: Deploy to Production
+
+on:
+  workflow_run:
+    workflows: ["CI Pipeline"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Deploy to Production VPS
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    environment:
+      name: production
+      url: ${{ secrets.VPS_URL }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Copy Deployment Scripts to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          source: "scripts/deployment/*"
+          target: "apps/docker-node/"
+          strip_components: 2
+
+      - name: Deploy Application
+        uses: appleboy/ssh-action@v1.0.3
+        env:
+          NODE_ENV: ${{ secrets.NODE_ENV }}
+          PORT: ${{ secrets.PORT }}
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGO_INITDB_ROOT_USERNAME: ${{ secrets.MONGO_INITDB_ROOT_USERNAME }}
+          MONGO_INITDB_ROOT_PASSWORD: ${{ secrets.MONGO_INITDB_ROOT_PASSWORD }}
+          MONGO_INITDB_DATABASE: ${{ secrets.MONGO_INITDB_DATABASE }}
+          REDIS_URL: ${{ secrets.REDIS_URL }}
+          KAFKA_BROKERS: ${{ secrets.KAFKA_BROKERS }}
+          KAFKA_CLIENT_ID: ${{ secrets.KAFKA_CLIENT_ID }}
+          KAFKA_LOG_TOPIC: ${{ secrets.KAFKA_LOG_TOPIC }}
+          ZOOKEEPER_CLIENT_PORT: ${{ secrets.ZOOKEEPER_CLIENT_PORT }}
+          ZOOKEEPER_TICK_TIME: ${{ secrets.ZOOKEEPER_TICK_TIME }}
+          KAFKA_BROKER_ID: ${{ secrets.KAFKA_BROKER_ID }}
+          KAFKA_ZOOKEEPER_CONNECT: ${{ secrets.KAFKA_ZOOKEEPER_CONNECT }}
+          KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: ${{ secrets.KAFKA_LISTENER_SECURITY_PROTOCOL_MAP }}
+          KAFKA_ADVERTISED_LISTENERS: ${{ secrets.KAFKA_ADVERTISED_LISTENERS }}
+          KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${{ secrets.KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR }}
+          KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: ${{ secrets.KAFKA_TRANSACTION_STATE_LOG_MIN_ISR }}
+          KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${{ secrets.KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR }}
+          KAFKA_AUTO_CREATE_TOPICS_ENABLE: ${{ secrets.KAFKA_AUTO_CREATE_TOPICS_ENABLE }}
+          KAFKA_CLUSTERS_0_NAME: ${{ secrets.KAFKA_CLUSTERS_0_NAME }}
+          KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: ${{ secrets.KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS }}
+          KAFKA_CLUSTERS_0_ZOOKEEPER: ${{ secrets.KAFKA_CLUSTERS_0_ZOOKEEPER }}
+          DOCKER_NODE_ENV: ${{ secrets.DOCKER_NODE_ENV }}
+          DOCKER_PORT: ${{ secrets.DOCKER_PORT }}
+          DOCKER_MONGODB_URI: ${{ secrets.DOCKER_MONGODB_URI }}
+          DOCKER_REDIS_URL: ${{ secrets.DOCKER_REDIS_URL }}
+          DOCKER_KAFKA_BROKERS: ${{ secrets.DOCKER_KAFKA_BROKERS }}
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          envs: NODE_ENV,PORT,MONGODB_URI,MONGO_INITDB_ROOT_USERNAME,MONGO_INITDB_ROOT_PASSWORD,MONGO_INITDB_DATABASE,REDIS_URL,KAFKA_BROKERS,KAFKA_CLIENT_ID,KAFKA_LOG_TOPIC,ZOOKEEPER_CLIENT_PORT,ZOOKEEPER_TICK_TIME,KAFKA_BROKER_ID,KAFKA_ZOOKEEPER_CONNECT,KAFKA_LISTENER_SECURITY_PROTOCOL_MAP,KAFKA_ADVERTISED_LISTENERS,KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR,KAFKA_TRANSACTION_STATE_LOG_MIN_ISR,KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR,KAFKA_AUTO_CREATE_TOPICS_ENABLE,KAFKA_CLUSTERS_0_NAME,KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS,KAFKA_CLUSTERS_0_ZOOKEEPER,DOCKER_NODE_ENV,DOCKER_PORT,DOCKER_MONGODB_URI,DOCKER_REDIS_URL,DOCKER_KAFKA_BROKERS
+          script_stop: true
+          command_timeout: 30m
+          script: |
+            cd apps/docker-node
+
+            # Create .env file from environment variables
+            cat > .env << 'ENVFILE'
+            NODE_ENV=$NODE_ENV
+            PORT=$PORT
+            MONGODB_URI=$MONGODB_URI
+            MONGO_INITDB_ROOT_USERNAME=$MONGO_INITDB_ROOT_USERNAME
+            MONGO_INITDB_ROOT_PASSWORD=$MONGO_INITDB_ROOT_PASSWORD
+            MONGO_INITDB_DATABASE=$MONGO_INITDB_DATABASE
+            REDIS_URL=$REDIS_URL
+            KAFKA_BROKERS=$KAFKA_BROKERS
+            KAFKA_CLIENT_ID=$KAFKA_CLIENT_ID
+            KAFKA_LOG_TOPIC=$KAFKA_LOG_TOPIC
+            ZOOKEEPER_CLIENT_PORT=$ZOOKEEPER_CLIENT_PORT
+            ZOOKEEPER_TICK_TIME=$ZOOKEEPER_TICK_TIME
+            KAFKA_BROKER_ID=$KAFKA_BROKER_ID
+            KAFKA_ZOOKEEPER_CONNECT=$KAFKA_ZOOKEEPER_CONNECT
+            KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=$KAFKA_LISTENER_SECURITY_PROTOCOL_MAP
+            KAFKA_ADVERTISED_LISTENERS=$KAFKA_ADVERTISED_LISTENERS
+            KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=$KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR
+            KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=$KAFKA_TRANSACTION_STATE_LOG_MIN_ISR
+            KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=$KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR
+            KAFKA_AUTO_CREATE_TOPICS_ENABLE=$KAFKA_AUTO_CREATE_TOPICS_ENABLE
+            KAFKA_CLUSTERS_0_NAME=$KAFKA_CLUSTERS_0_NAME
+            KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=$KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS
+            KAFKA_CLUSTERS_0_ZOOKEEPER=$KAFKA_CLUSTERS_0_ZOOKEEPER
+            DOCKER_NODE_ENV=$DOCKER_NODE_ENV
+            DOCKER_PORT=$DOCKER_PORT
+            DOCKER_MONGODB_URI=$DOCKER_MONGODB_URI
+            DOCKER_REDIS_URL=$DOCKER_REDIS_URL
+            DOCKER_KAFKA_BROKERS=$DOCKER_KAFKA_BROKERS
+            ENVFILE
+
+            # Make scripts executable
+            chmod +x deployment/*.sh
+
+            # Execute deployment
+            export PROJECT_DIR="."
+            export HEALTH_CHECK_URL="http://localhost:3000/health"
+            bash deployment/deploy.sh
+
+      - name: Verify Deployment
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            cd apps/docker-node
+
+            echo "=== Running Containers ==="
+            docker compose ps
+
+            echo ""
+            echo "=== Health Check ==="
+            bash deployment/health-check.sh http://localhost:3000/health 5 3
+
+            echo ""
+            echo "=== Recent Application Logs ==="
+            docker compose logs --tail=30 app
+
+      - name: Notify Success
+        if: success()
+        env:
+          DEPLOYMENT_URL: ${{ secrets.VPS_URL }}
+        run: |
+          echo "✓ Deployment successful!"
+          echo "Application URL: $DEPLOYMENT_URL"
+
+      - name: Notify Failure
+        if: failure()
+        run: |
+          echo "✗ Deployment failed!"
+          echo "Check logs and consider running rollback script"
